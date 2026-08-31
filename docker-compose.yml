@@ -1,0 +1,39 @@
+﻿version: '3.8'
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: aquasentinel_postgis
+    environment:
+      POSTGRES_USER: aquasentinel
+      POSTGRES_PASSWORD: aquasentinel_password
+      POSTGRES_DB: aquasentinel_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aquasentinel_backend
+    environment:
+      DATABASE_URL: postgresql://aquasentinel:aquasentinel_password@db:5432/aquasentinel_db
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aquasentinel_frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

@@ -1,0 +1,347 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Core palette — Light Theme */
+  --color-ground: #F4F8FC;
+  --color-surface: rgba(255, 255, 255, 0.78);
+  --color-surface-solid: #FFFFFF;
+  --color-surface-hover: rgba(255, 255, 255, 0.92);
+  --color-hairline: rgba(226, 232, 240, 0.85);
+  --color-hairline-strong: rgba(203, 213, 225, 0.95);
+
+  /* Ink */
+  --color-ink-primary: #0F2942;
+  --color-ink-secondary: #334155;
+  --color-ink-muted: #64748B;
+
+  /* Accent (Ocean Azure) */
+  --color-accent: #0284C7;
+  --color-accent-light: #38BDF8;
+  --color-accent-dark: #0369A1;
+  --color-accent-glow: rgba(2, 132, 199, 0.2);
+
+  /* CGWB Classification — Vibrant Solid Marker & Tier Colors */
+  --color-cgwb-safe: #16A34A;
+  --color-cgwb-semi-critical: #EAB308;
+  --color-cgwb-critical: #F97316;
+  --color-cgwb-over-exploited: #DC2626;
+  --color-cgwb-saline: #7C3AED;
+
+  /* Glassmorphism System — Light */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-bg-subtle: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-border-subtle: rgba(226, 232, 240, 0.75);
+  --glass-border-accent: rgba(56, 189, 248, 0.5);
+  
+  --glass-shadow: 0 10px 30px -5px rgba(15, 41, 66, 0.06), 0 2px 6px -1px rgba(15, 41, 66, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --glass-shadow-hover: 0 18px 40px -8px rgba(2, 132, 199, 0.14), 0 6px 16px -3px rgba(15, 41, 66, 0.06), inset 0 1px 0 rgba(255, 255, 255, 1);
+  --glass-shadow-active: 0 4px 15px -2px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --glass-blur: blur(16px) saturate(180%);
+  --glass-blur-sm: blur(10px) saturate(160%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--color-ground);
+  background-image:
+    radial-gradient(ellipse 90% 60% at 15% -5%, rgba(56, 189, 248, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 50% at 85% 10%, rgba(14, 165, 233, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 80% 50% at 50% 95%, rgba(125, 211, 252, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 90%, rgba(192, 132, 252, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #F8FAFC 0%, #F1F6FB 50%, #EBF3FA 100%);
+  background-attachment: fixed;
+  color: var(--color-ink-primary);
+}
+
+/* ── Light Glassmorphism Utility Classes ─────────────────── */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-strong {
+  background: var(--glass-bg-strong);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+.glass-subtle {
+  background: var(--glass-bg-subtle);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+  border: 1px solid var(--glass-border-subtle);
+}
+
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: 1rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: var(--glass-bg-strong);
+  box-shadow: var(--glass-shadow-hover);
+  border-color: rgba(255, 255, 255, 1);
+  transform: translateY(-2px);
+}
+
+.glass-card-interactive {
+  cursor: pointer;
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px -1px rgba(15, 41, 66, 0.05);
+}
+
+/* ── Tailwind utility mappings ────────────────────────────── */
+.text-ink-primary   { color: var(--color-ink-primary); }
+.text-ink-secondary { color: var(--color-ink-secondary); }
+.text-ink-muted     { color: var(--color-ink-muted); }
+.text-accent        { color: var(--color-accent); }
+.bg-surface         { background: var(--glass-bg); }
+.bg-ground          { background: transparent; }
+.border-hairline    { border-color: var(--glass-border-subtle); }
+
+/* ── Leaflet Light-Themed Overrides ───────────────────────── */
+.leaflet-container {
+  background: #E8F0F8 !important;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.875rem;
+}
+
+/* Light, clean tile rendering */
+.leaflet-tile-pane {
+  filter: saturate(1.1) brightness(1.02);
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 1) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 20px 45px -8px rgba(15, 41, 66, 0.16), 0 6px 16px -4px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 1) !important;
+  padding: 0 !important;
+  color: var(--color-ink-primary) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.5 !important;
+  color: var(--color-ink-primary) !important;
+}
+
+.leaflet-popup-tip-container {
+  display: none !important;
+}
+
+.leaflet-popup-close-button {
+  display: none !important;
+}
+
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 4px 12px -2px rgba(15, 41, 66, 0.08) !important;
+  color: var(--color-ink-primary) !important;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  line-height: 2.25rem !important;
+  font-size: 1.25rem !important;
+  border-radius: 0.5rem !important;
+  margin-bottom: 4px !important;
+  transition: all 0.2s ease !important;
+}
+
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background: #FFFFFF !important;
+  color: var(--color-accent) !important;
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px -2px rgba(2, 132, 199, 0.2) !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(6px) !important;
+  color: var(--color-ink-muted) !important;
+  font-size: 0.65rem !important;
+  border-radius: 0.5rem 0 0 0 !important;
+  padding: 2px 8px !important;
+}
+
+.leaflet-control-attribution a {
+  color: var(--color-accent) !important;
+}
+
+/* ── District Marker Glow Effects ─────────────────────────── */
+.district-marker {
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease;
+}
+
+.district-marker:hover {
+  filter: drop-shadow(0 0 8px rgba(2, 132, 199, 0.6)) brightness(1.1);
+}
+
+.district-marker-safe {
+  filter: drop-shadow(0 0 6px rgba(22, 163, 74, 0.4));
+}
+.district-marker-semi-critical {
+  filter: drop-shadow(0 0 6px rgba(234, 179, 8, 0.45));
+}
+.district-marker-critical {
+  filter: drop-shadow(0 0 7px rgba(249, 115, 22, 0.5));
+}
+.district-marker-over-exploited {
+  filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.55));
+}
+.district-marker-saline {
+  filter: drop-shadow(0 0 8px rgba(124, 58, 237, 0.55));
+}
+
+.district-marker-selected {
+  filter: drop-shadow(0 0 12px rgba(2, 132, 199, 0.85)) !important;
+  animation: pulse-ring 2s infinite ease-out;
+}
+
+/* ── Recharts Light Theme Glass Styling ───────────────────── */
+.recharts-tooltip-wrapper {
+  outline: none;
+}
+
+.recharts-default-tooltip {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 1) !important;
+  border-radius: 0.875rem !important;
+  box-shadow: 0 15px 35px -5px rgba(15, 41, 66, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.04) !important;
+  padding: 0.75rem 1rem !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  color: var(--color-ink-primary) !important;
+}
+
+.recharts-tooltip-label {
+  color: var(--color-ink-secondary) !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem !important;
+}
+
+.recharts-tooltip-item {
+  color: var(--color-ink-primary) !important;
+  font-size: 0.875rem !important;
+  font-weight: 500 !important;
+}
+
+.recharts-legend-wrapper {
+  font-family: 'Inter', system-ui, sans-serif !important;
+}
+
+.recharts-legend-item-text {
+  color: var(--color-ink-secondary) !important;
+  font-size: 0.75rem !important;
+  font-weight: 500 !important;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.6);
+}
+
+/* ── Focus ────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.9; }
+  50%  { transform: scale(1.15); opacity: 0.6; }
+  100% { transform: scale(1);   opacity: 0.9; }
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-3px); }
+}
+
+.animate-float-subtle {
+  animation: float-subtle 4s ease-in-out infinite;
+}
+
+/* Safety net: animation fill-mode 'forwards' bug — elements NEVER stay invisible */
+[style*="opacity: 0"], [style*="opacity:0"] {
+  opacity: 1 !important;
+}
+
+/* Explicit fade-in for page containers — always resolves to fully visible */
+@keyframes pageFadeIn {
+  from { opacity: 0.001; transform: translateY(6px); }
+  to   { opacity: 1;     transform: translateY(0); }
+}
+
+.page-enter {
+  animation: pageFadeIn 0.3s ease-out;
+}
