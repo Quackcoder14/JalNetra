@@ -1,4 +1,4 @@
-# AquaSentinel
+# JalNetra
 
 **AI-Powered Groundwater & Salinity Early-Warning System** — Prototype for Smart India Hackathon 2026 prep.
 
@@ -27,7 +27,7 @@ npm run preview
 ## Project Structure
 
 ```
-aquasentinel/
+jalnetra/
 ├── public/
 │   └── favicon.svg
 ├── src/
@@ -160,20 +160,6 @@ The React hooks (`useDistricts`, `useDistrict`, `useNationalStats`) and all UI c
 | **Single combined chart dataset** | Historical + forecast in one Recharts `LineChart` with polygon `Area` for confidence band |
 | **No Redux/Context** | 4 pages, simple prop-drilling + 3 hooks — overkill for prototype |
 | **FastAPI-shaped mocks** | Zero-rewrite swap when real backend lands |
-
----
-
-## Known Limitations (Prototype)
-
-- ❌ No real backend — all data simulated
-- ❌ No authentication / role-based access
-- ❌ Map uses point markers, not district boundaries
-- ❌ Confidence bands use simple heuristic, not statistical model
-- ❌ Extraction trend is a proxy (CGWB periodic assessment), not real-time telemetry
-- ❌ No export / PDF report generation
-- ❌ Limited mobile optimization (primary target: 1440px projected screen)
-
----
 
 ## License
 
