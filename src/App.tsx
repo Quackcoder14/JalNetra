@@ -21,15 +21,11 @@ function App() {
     setShowSplash(false);
   };
 
-  const handleReplayIntro = () => {
-    setShowSplash(true);
-  };
-
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       {showSplash && <SplashIntro onComplete={handleSplashComplete} />}
       <div className="min-h-screen bg-ground flex flex-col selection:bg-sky-200 selection:text-sky-900">
-        <Navbar onReplayIntro={handleReplayIntro} />
+        <Navbar />
         <main id="main-content" className="flex-1">
           <Routes>
             <Route path="/" element={<NationalOverview />} />

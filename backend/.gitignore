@@ -1,0 +1,15 @@
+# JalNetra Backend — Python ignore patterns
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+.venv
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.DS_Store

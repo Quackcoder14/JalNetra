@@ -8,10 +8,9 @@ import { useRefresh } from '../hooks/useMockData';
 
 interface NavbarProps {
   onRefresh?: () => void;
-  onReplayIntro?: () => void;
 }
 
-export function Navbar({ onRefresh, onReplayIntro }: NavbarProps) {
+export function Navbar({ onRefresh }: NavbarProps) {
   const location = useLocation();
   const { refreshing, triggerRefresh } = useRefresh();
 
