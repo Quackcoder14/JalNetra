@@ -23,11 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 
-# Data and large files
-data/
+# Raw data and large files (only in root data/ folder)
+/data/
 *.pdf
 *.nc
 *.gdb/
+
+# Ensure src/data/ is always tracked
+!src/data/
+!src/data/**
 
 # Python artifacts
 __pycache__/
@@ -36,4 +40,4 @@ __pycache__/
 .venv/
 venv/
 env/
-.env
+.env.local
