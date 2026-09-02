@@ -144,11 +144,11 @@ export async function fetchClassifications(): Promise<ApiResponse<{
 }>> {
   return mockResponse({
     tiers: [
-      { value: 'Safe', label: 'Safe', color: '#16A34A', description: 'Groundwater development < 70%' },
-      { value: 'Semi-Critical', label: 'Semi-Critical', color: '#EAB308', description: 'Groundwater development 70-90%' },
-      { value: 'Critical', label: 'Critical', color: '#F97316', description: 'Groundwater development 90-100%' },
-      { value: 'Over-Exploited', label: 'Over-Exploited', color: '#DC2626', description: 'Groundwater development > 100%' },
-      { value: 'Saline', label: 'Saline', color: '#7C3AED', description: 'Coastal salinity intrusion' },
+      { value: 'Safe', label: 'Safe', color: '#16A34A', description: 'Stage of Extraction < 70%' },
+      { value: 'Semi-Critical', label: 'Semi-Critical', color: '#EAB308', description: 'Stage of Extraction 70–90%' },
+      { value: 'Critical', label: 'Critical', color: '#F97316', description: 'Stage of Extraction 90–100%' },
+      { value: 'Over-Exploited', label: 'Over-Exploited', color: '#DC2626', description: 'Stage of Extraction > 100%' },
+      { value: 'Saline', label: 'Saline', color: '#7C3AED', description: 'Saline Intrusion (EC > 3000 µS/cm)' },
     ],
   });
 }

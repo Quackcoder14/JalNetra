@@ -1,4 +1,4 @@
-﻿"""
+"""
 JalNetra - FastAPI Backend
 Serves groundwater telemetry data, Prophet + XGBoost AI Hybrid forecasts, policy simulations, and recharge recommendations.
 Ready for Render deployment.
@@ -139,17 +139,44 @@ def _simple_rng(seed: int):
         return seed / 0xFFFFFFFF
     return rng
 
-def _make_gw_history(seed_val: int, base_level: float = 18.0, months: int = 60) -> list:
+_CLIMATE_YEAR_ANOMALIES = [1.14, 1.06, 1.20, 0.84, 1.10, 1.04]
+
+def _get_hydro_seasonal_shift(month_idx: int, is_tamil_nadu: bool) -> float:
+    if is_tamil_nadu:
+        recharge = math.exp(-((month_idx - 10.5) ** 2) / 2.8) * 1.55
+        summer_drawdown = math.exp(-((month_idx - 7.0) ** 2) / 4.0) * 1.35
+        return -recharge + summer_drawdown
+    else:
+        recharge = math.exp(-((month_idx - 8.2) ** 2) / 2.7) * 1.55
+        summer_drawdown = math.exp(-((month_idx - 4.5) ** 2) / 3.6) * 1.35
+        return -recharge + summer_drawdown
+
+def _make_gw_history(seed_val: int, base_level: float = 18.0, months: int = 60, state: str = "") -> list:
     rng = _simple_rng(seed_val)
     readings = []
     base = datetime(2020, 9, 1)
+    is_tn = "tamil nadu" in state.lower() or "chennai" in state.lower()
+    amp = 2.4
+    trend_rate = 0.08
+
+    prev_noise = 0.0
     for i in range(months):
         dt = base + timedelta(days=30 * i)
-        seasonal = 2.5 * math.sin((dt.month - 4) / 12 * 2 * math.pi)
-        trend = 0.04 * i
-        noise = (rng() - 0.5) * 0.6
-        val = base_level + trend + seasonal + noise
-        readings.append({"month": dt.strftime("%Y-%m"), "value": round(val, 2)})
+        month_idx = dt.month - 1
+        year_idx = min(len(_CLIMATE_YEAR_ANOMALIES) - 1, i // 12)
+        climate_factor = _CLIMATE_YEAR_ANOMALIES[year_idx]
+
+        seasonal_delta = _get_hydro_seasonal_shift(month_idx, is_tn) * amp * climate_factor
+        pumping_shock = (0.2 + rng() * 0.25) if month_idx in (0, 1, 4) else 0.0
+
+        raw_noise = (rng() - 0.5) * 0.32
+        smoothed_noise = 0.65 * prev_noise + 0.35 * raw_noise
+        prev_noise = smoothed_noise
+
+        trend_shift = trend_rate * (i / 12.0)
+        val = base_level + trend_shift + seasonal_delta + pumping_shock + smoothed_noise
+        val = max(0.6, round(val, 2))
+        readings.append({"month": dt.strftime("%Y-%m"), "value": val})
     return readings
 
 
@@ -244,31 +271,44 @@ def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
 
 # ── Simulation Forecast (fallback) ────────────────────────────────────────────
 
-def _simulation_forecast(history: list, steps: int = 12) -> list:
+def _simulation_forecast(history: list, steps: int = 12, state: str = "") -> list:
     if not history:
         return []
     last = history[-1]["value"]
-    base = datetime.strptime(history[-1]["month"], "%Y-%m") + timedelta(days=30)
+    base = datetime.strptime(history[-1]["month"], "%Y-%m")
     rng  = _simple_rng(hash(str(last)) & 0xFFFFFFFF)
+    is_tn = "tamil nadu" in state.lower() or "chennai" in state.lower()
+    amp = 2.4
+    trend_rate = 0.08
+
+    # Base recent 12-month mean
+    recent = history[-12:]
+    recent_mean = sum(h["value"] for h in recent) / len(recent)
+
     points = []
     for i in range(1, steps + 1):
-        dt = base + timedelta(days=30 * (i - 1))
-        seasonal    = 1.8 * math.sin((dt.month - 4) / 12 * 2 * math.pi)
-        trend_val   = last + 0.03 * i + seasonal + (rng() - 0.5) * 0.4
-        uncertainty = 0.3 + 0.08 * i
+        dt = base + timedelta(days=30 * i)
+        month_idx = dt.month - 1
+        seasonal_delta = _get_hydro_seasonal_shift(month_idx, is_tn) * amp * 1.02
+        trend_shift = trend_rate * (i / 12.0)
+
+        proj = recent_mean + trend_shift + seasonal_delta + (rng() - 0.5) * 0.18
+        val = round(max(0.5, proj), 2)
+        uncertainty = round(0.32 + 0.075 * i, 2)
+
         points.append({
             "month": dt.strftime("%Y-%m"),
-            "value": round(trend_val, 2),
-            "upper": round(trend_val + uncertainty, 2),
-            "lower": round(max(0.5, trend_val - uncertainty), 2),
+            "value": val,
+            "upper": round(val + uncertainty, 2),
+            "lower": round(max(0.5, val - uncertainty), 2),
         })
     return points
 
-def _make_forecast(history: list, steps: int = 12):
+def _make_forecast(history: list, steps: int = 12, state: str = ""):
     pts = _prophet_xgboost_forecast(history, steps)
     if pts:
         return pts, "prophet_xgboost"
-    return _simulation_forecast(history, steps), "simulation"
+    return _simulation_forecast(history, steps, state=state), "simulation"
 
 
 # ── Health Check ───────────────────────────────────────────────────────────────
@@ -323,8 +363,8 @@ async def get_district_detail(district_id: str):
     d          = _find_district(district_id)
     seed_val   = hash(d["id"]) & 0xFFFFFFFF
     base_level = 8.0 if d["cls"] == "Safe" else 25.0 if d["cls"] == "Over-Exploited" else 15.0
-    history    = _make_gw_history(seed_val, base_level)
-    forecast, engine = _make_forecast(history)
+    history    = _make_gw_history(seed_val, base_level, state=d["state"])
+    forecast, engine = _make_forecast(history, state=d["state"])
     rng = _simple_rng(seed_val)
     return {
         "data": {

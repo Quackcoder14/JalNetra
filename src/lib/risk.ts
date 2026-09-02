@@ -23,7 +23,7 @@ export const TIER_CONFIG: Record<CGWBClassification, {
     bgColor: '#DCFCE7',
     borderColor: '#86EFAC',
     markerColor: '#16A34A',
-    description: 'Groundwater development < 70%',
+    description: 'Stage of Extraction < 70%',
     severity: 1,
   },
   'Semi-Critical': {
@@ -32,7 +32,7 @@ export const TIER_CONFIG: Record<CGWBClassification, {
     bgColor: '#FEF9C3',
     borderColor: '#FDE047',
     markerColor: '#EAB308',
-    description: 'Groundwater development 70–90%',
+    description: 'Stage of Extraction 70–90%',
     severity: 2,
   },
   'Critical': {
@@ -41,7 +41,7 @@ export const TIER_CONFIG: Record<CGWBClassification, {
     bgColor: '#FFEDD5',
     borderColor: '#FDBA74',
     markerColor: '#F97316',
-    description: 'Groundwater development 90–100%',
+    description: 'Stage of Extraction 90–100%',
     severity: 3,
   },
   'Over-Exploited': {
@@ -50,7 +50,7 @@ export const TIER_CONFIG: Record<CGWBClassification, {
     bgColor: '#FEF2F2',
     borderColor: '#FCA5A5',
     markerColor: '#DC2626',
-    description: 'Groundwater development > 100%',
+    description: 'Stage of Extraction > 100%',
     severity: 4,
   },
   'Saline': {
@@ -59,7 +59,7 @@ export const TIER_CONFIG: Record<CGWBClassification, {
     bgColor: '#F3E8FF',
     borderColor: '#D8B4FE',
     markerColor: '#7C3AED',
-    description: 'Coastal salinity intrusion',
+    description: 'Saline Intrusion (EC > 3000 µS/cm)',
     severity: 5,
   },
 };
