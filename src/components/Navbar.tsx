@@ -37,8 +37,29 @@ export function Navbar({ onRefresh }: NavbarProps) {
             className="flex items-center gap-2.5 text-ink-primary focus-visible:outline-none group flex-shrink-0"
             aria-label="JalNetra Home"
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-cyan-500 to-sky-400 flex items-center justify-center shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform flex-shrink-0">
-              <span className="text-xl leading-none">💧</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-600 via-cyan-600 to-sky-500 p-0.5 flex items-center justify-center shadow-md shadow-sky-500/25 group-hover:scale-105 group-hover:shadow-sky-500/40 transition-all flex-shrink-0">
+              <svg className="w-full h-full" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="512" height="512" rx="128" fill="url(#navBgGrad)"/>
+                <circle cx="256" cy="276" r="170" stroke="#38BDF8" strokeWidth="6" strokeOpacity="0.35" strokeDasharray="16 16"/>
+                <circle cx="256" cy="276" r="125" stroke="#7DD3FC" strokeWidth="8" strokeOpacity="0.45"/>
+                <path d="M256 86 C256 86, 140 226, 140 316 C140 380.065, 191.935 432, 256 432 C320.065 432, 372 380.065, 372 316 C372 226, 256 86, 256 86 Z" fill="url(#navDropGrad)"/>
+                <path d="M256 124 C256 124, 168 238, 168 312 C168 360.598, 207.402 400, 256 400 C274.6 400, 291.8 394.2, 306 384 C280 380, 240 354, 240 300 C240 240, 256 124, 256 124 Z" fill="#BAE6FD" fillOpacity="0.75"/>
+                <circle cx="256" cy="316" r="42" fill="#0369A1" stroke="#BAE6FD" strokeWidth="10"/>
+                <circle cx="256" cy="316" r="20" fill="#E0F2FE"/>
+                <circle cx="248" cy="308" r="7" fill="#FFFFFF"/>
+                <path d="M190 354 C206 370, 230 380, 256 380 C282 380, 306 370, 322 354" stroke="#BAE6FD" strokeWidth="8" strokeLinecap="round" strokeOpacity="0.9"/>
+                <defs>
+                  <linearGradient id="navBgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#0284C7"/>
+                    <stop offset="100%" stopColor="#0369A1"/>
+                  </linearGradient>
+                  <linearGradient id="navDropGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#38BDF8"/>
+                    <stop offset="50%" stopColor="#0EA5E9"/>
+                    <stop offset="100%" stopColor="#0284C7"/>
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
