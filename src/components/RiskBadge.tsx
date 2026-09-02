@@ -1,8 +1,4 @@
-/**
- * Reusable badge components for risk classification, trends, and glassmorphic stat cards.
- */
-
-import { TIER_CONFIG, EXTRACTION_TREND_CONFIG, GW_TREND_CONFIG, getSalinityRiskBand, getTierColor } from '../lib/risk';
+import { getTierConfig, getExtractionTrendConfig, getGwTrendConfig, getSalinityRiskBand, getTierColor } from '../lib/risk';
 import { CGWBClassification, ExtractionTrend } from '../data/types';
 
 interface ClassificationBadgeProps {
@@ -16,7 +12,7 @@ export function ClassificationBadge({
   size = 'md',
   showDescription = false,
 }: ClassificationBadgeProps) {
-  const config = TIER_CONFIG[classification];
+  const config = getTierConfig(classification);
   const markerColor = getTierColor(classification);
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-caption',
@@ -52,12 +48,12 @@ export function ClassificationBadge({
 }
 
 interface TrendBadgeProps {
-  trend: ExtractionTrend;
+  trend: ExtractionTrend | string;
   size?: 'sm' | 'md';
 }
 
 export function ExtractionTrendBadge({ trend, size = 'md' }: TrendBadgeProps) {
-  const config = EXTRACTION_TREND_CONFIG[trend];
+  const config = getExtractionTrendConfig(trend);
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-caption',
     md: 'px-2.5 py-1 text-body-sm font-medium',
@@ -98,12 +94,12 @@ export function ExtractionTrendBadge({ trend, size = 'md' }: TrendBadgeProps) {
 }
 
 interface GwTrendBadgeProps {
-  trend: 'improving' | 'declining' | 'stable';
+  trend: 'improving' | 'declining' | 'stable' | string;
   size?: 'sm' | 'md';
 }
 
 export function GwTrendBadge({ trend, size = 'md' }: GwTrendBadgeProps) {
-  const config = GW_TREND_CONFIG[trend];
+  const config = getGwTrendConfig(trend);
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-caption',
     md: 'px-2.5 py-1 text-body-sm font-medium',

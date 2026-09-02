@@ -1,6 +1,6 @@
 /**
  * Risk scoring and tier color/label mappings.
- * Centralized so UI components stay consistent.
+ * Centralized and bulletproof so UI components stay consistent without runtime crashes.
  */
 
 import { CGWBClassification, ExtractionTrend } from '../data/types';
@@ -65,42 +65,49 @@ export const TIER_CONFIG: Record<CGWBClassification, {
 };
 
 /**
- * Extraction trend display config.
+ * Helper to safely get Tier Config with default fallback
  */
-export const EXTRACTION_TREND_CONFIG: Record<ExtractionTrend, {
+export function getTierConfig(classification?: string) {
+  if (classification && TIER_CONFIG[classification as CGWBClassification]) {
+    return TIER_CONFIG[classification as CGWBClassification];
+  }
+  return TIER_CONFIG['Safe'];
+}
+
+/**
+ * Extraction trend display config with aliases for backend compatibility.
+ */
+export const EXTRACTION_TREND_CONFIG: Record<string, {
   label: string;
   icon: 'up' | 'down' | 'horizontal';
   color: string;
   bgColor: string;
 }> = {
-  rising: {
-    label: 'Rising',
-    icon: 'up',
-    color: '#991B1B',
-    bgColor: '#FEF2F2',
-  },
-  falling: {
-    label: 'Falling',
-    icon: 'down',
-    color: '#166534',
-    bgColor: '#DCFCE7',
-  },
-  stable: {
-    label: 'Stable',
-    icon: 'horizontal',
-    color: '#854D0E',
-    bgColor: '#FEF9C3',
-  },
+  rising: { label: 'Rising', icon: 'up', color: '#991B1B', bgColor: '#FEF2F2' },
+  increasing: { label: 'Rising', icon: 'up', color: '#991B1B', bgColor: '#FEF2F2' },
+  falling: { label: 'Falling', icon: 'down', color: '#166534', bgColor: '#DCFCE7' },
+  decreasing: { label: 'Falling', icon: 'down', color: '#166534', bgColor: '#DCFCE7' },
+  stable: { label: 'Stable', icon: 'horizontal', color: '#854D0E', bgColor: '#FEF9C3' },
 };
+
+export function getExtractionTrendConfig(trend?: string) {
+  const clean = (trend || '').toLowerCase().trim();
+  return EXTRACTION_TREND_CONFIG[clean] || EXTRACTION_TREND_CONFIG['stable'];
+}
 
 /**
  * GW trend display config.
  */
-export const GW_TREND_CONFIG = {
+export const GW_TREND_CONFIG: Record<string, { label: string; color: string; bgColor: string; icon: 'up' | 'down' | 'horizontal' }> = {
   improving: { label: 'Improving', color: '#166534', bgColor: '#DCFCE7', icon: 'down' },
   declining: { label: 'Declining', color: '#991B1B', bgColor: '#FEF2F2', icon: 'up' },
   stable: { label: 'Stable', color: '#854D0E', bgColor: '#FEF9C3', icon: 'horizontal' },
-} as const;
+};
+
+export function getGwTrendConfig(trend?: string) {
+  const clean = (trend || '').toLowerCase().trim();
+  return GW_TREND_CONFIG[clean] || GW_TREND_CONFIG['stable'];
+}
 
 /**
  * Salinity risk score bands.
@@ -122,41 +129,43 @@ export function getSalinityRiskBand(score: number): {
  * Factors: classification severity (40%), GW trend (30%), rainfall deficit (20%), extraction trend (10%).
  */
 export function computeDrawdownRiskScore(district: {
-  cgwbClassification: CGWBClassification;
-  gwTrend: 'improving' | 'declining' | 'stable';
-  rainfallDeficitPct: number;
-  extractionTrend: ExtractionTrend;
+  cgwbClassification?: CGWBClassification;
+  gwTrend?: 'improving' | 'declining' | 'stable' | string;
+  rainfallDeficitPct?: number;
+  extractionTrend?: ExtractionTrend | string;
 }): number {
-  const tierSeverity = TIER_CONFIG[district.cgwbClassification].severity; // 1-5
-  const tierScore = (tierSeverity / 5) * 40;
+  const tier = getTierConfig(district.cgwbClassification);
+  const tierScore = (tier.severity / 5) * 40;
 
-  const trendScore = district.gwTrend === 'declining' ? 30 : district.gwTrend === 'stable' ? 15 : 0;
+  const gwTrend = (district.gwTrend || '').toLowerCase();
+  const trendScore = gwTrend === 'declining' ? 30 : gwTrend === 'stable' ? 15 : 0;
 
-  const deficitScore = Math.min(20, Math.max(0, (district.rainfallDeficitPct / 50) * 20));
+  const deficit = district.rainfallDeficitPct ?? 0;
+  const deficitScore = Math.min(20, Math.max(0, (deficit / 50) * 20));
 
-  const extractionScore = district.extractionTrend === 'rising' ? 10 : district.extractionTrend === 'stable' ? 5 : 0;
+  const extTrend = (district.extractionTrend || '').toLowerCase();
+  const extractionScore = (extTrend === 'rising' || extTrend === 'increasing') ? 10 : extTrend === 'stable' ? 5 : 0;
 
   return Math.round(tierScore + trendScore + deficitScore + extractionScore);
 }
 
 /**
  * Composite salinity risk score (0-100) for coastal districts.
- * Uses pre-computed salinityRiskScore if available, otherwise computes from EC trend + drawdown + proximity.
  */
 export function computeSalinityRiskScore(district: {
-  isCoastal: boolean;
+  isCoastal?: boolean;
   salinityRiskScore?: number;
-  cgwbClassification: CGWBClassification;
-  gwTrend: 'improving' | 'declining' | 'stable';
+  cgwbClassification?: CGWBClassification;
+  gwTrend?: 'improving' | 'declining' | 'stable' | string;
 }): number {
   if (!district.isCoastal) return 0;
   if (district.salinityRiskScore !== undefined) return district.salinityRiskScore;
 
-  // Fallback computation
-  const tierSeverity = TIER_CONFIG[district.cgwbClassification].severity;
-  const tierScore = (tierSeverity / 5) * 50;
-  const trendScore = district.gwTrend === 'declining' ? 30 : district.gwTrend === 'stable' ? 15 : 0;
-  const coastalBonus = 20; // base coastal risk
+  const tier = getTierConfig(district.cgwbClassification);
+  const tierScore = (tier.severity / 5) * 50;
+  const gwTrend = (district.gwTrend || '').toLowerCase();
+  const trendScore = gwTrend === 'declining' ? 30 : gwTrend === 'stable' ? 15 : 0;
+  const coastalBonus = 20;
 
   return Math.min(100, Math.round(tierScore + trendScore + coastalBonus));
 }
@@ -164,40 +173,34 @@ export function computeSalinityRiskScore(district: {
 /**
  * Sort districts by risk severity (highest first).
  */
-export function sortByRiskSeverity<T extends { cgwbClassification: CGWBClassification }>(
+export function sortByRiskSeverity<T extends { cgwbClassification?: CGWBClassification }>(
   districts: T[]
 ): T[] {
   return [...districts].sort((a, b) => {
-    const severityA = TIER_CONFIG[a.cgwbClassification].severity;
-    const severityB = TIER_CONFIG[b.cgwbClassification].severity;
-    return severityB - severityA; // descending
+    const severityA = getTierConfig(a.cgwbClassification).severity;
+    const severityB = getTierConfig(b.cgwbClassification).severity;
+    return severityB - severityA;
   });
 }
 
 /**
  * Get color for a classification tier (for map markers).
  */
-export function getTierColor(classification: CGWBClassification): string {
-  const colors: Record<CGWBClassification, string> = {
-    'Safe': '#16A34A',
-    'Semi-Critical': '#EAB308',
-    'Critical': '#F97316',
-    'Over-Exploited': '#DC2626',
-    'Saline': '#7C3AED',
-  };
-  return colors[classification];
+export function getTierColor(classification?: CGWBClassification): string {
+  const tier = getTierConfig(classification);
+  return tier.markerColor;
 }
 
 /**
  * Get marker size based on severity.
  */
-export function getMarkerSize(classification: CGWBClassification): number {
-  const sizes: Record<CGWBClassification, number> = {
+export function getMarkerSize(classification?: CGWBClassification): number {
+  const sizes: Record<string, number> = {
     'Safe': 10,
     'Semi-Critical': 12,
     'Critical': 14,
     'Over-Exploited': 16,
     'Saline': 14,
   };
-  return sizes[classification];
+  return sizes[classification || 'Safe'] || 10;
 }
