@@ -255,13 +255,18 @@ def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
             month = df["ds"].iloc[i].month
             sin_m = math.sin(2 * math.pi * month / 12)
             cos_m = math.cos(2 * math.pi * month / 12)
-            lag_1 = float(df["residual"].iloc[i - 1]) if i > 0 else 0.0
+            sin_2m = math.sin(4 * math.pi * month / 12)
+            cos_2m = math.cos(4 * math.pi * month / 12)
+            lag_1 = float(df["residual"].iloc[i - 1]) if i >= 1 else 0.0
+            lag_2 = float(df["residual"].iloc[i - 2]) if i >= 2 else lag_1
+            lag_3 = float(df["residual"].iloc[i - 3]) if i >= 3 else lag_2
+            rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
             t_idx = float(i)
-            X_train.append([month, sin_m, cos_m, lag_1, t_idx])
+            X_train.append([month, sin_m, cos_m, sin_2m, cos_2m, lag_1, lag_2, rolling_mean_3, t_idx])
             y_train.append(float(df["residual"].iloc[i]))
 
         xgb = XGBRegressor(
-            n_estimators=40,
+            n_estimators=45,
             max_depth=3,
             learning_rate=0.08,
             random_state=42,
@@ -274,7 +279,7 @@ def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
         future_forecast = m.predict(future).iloc[-steps:].reset_index(drop=True)
 
         # Step 4: Multi-step XGBoost residual inference and hybrid combination
-        curr_lag = float(df["residual"].iloc[-1])
+        res_history = list(df["residual"].values)
         last_t = len(df)
         points = []
         for i in range(steps):
@@ -282,10 +287,17 @@ def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
             month = fut_date.month
             sin_m = math.sin(2 * math.pi * month / 12)
             cos_m = math.cos(2 * math.pi * month / 12)
+            sin_2m = math.sin(4 * math.pi * month / 12)
+            cos_2m = math.cos(4 * math.pi * month / 12)
+            lag_1 = float(res_history[-1])
+            lag_2 = float(res_history[-2]) if len(res_history) >= 2 else lag_1
+            lag_3 = float(res_history[-3]) if len(res_history) >= 3 else lag_2
+            rolling_mean_3 = (lag_1 + lag_2 + lag_3) / 3.0
             t_idx = float(last_t + i)
-            feat = np.array([[month, sin_m, cos_m, curr_lag, t_idx]])
+
+            feat = np.array([[month, sin_m, cos_m, sin_2m, cos_2m, lag_1, lag_2, rolling_mean_3, t_idx]])
             pred_resid = float(xgb.predict(feat)[0])
-            curr_lag = pred_resid
+            res_history.append(pred_resid)
 
             p_val   = float(future_forecast["yhat"].iloc[i])
             p_upper = float(future_forecast["yhat_upper"].iloc[i])
@@ -305,8 +317,6 @@ def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
     except Exception:
         return []
 
-
-# ── Simulation Forecast (fallback) ────────────────────────────────────────────
 
 def _simulation_forecast(history: list, steps: int = 12, state: str = "") -> list:
     if not history:

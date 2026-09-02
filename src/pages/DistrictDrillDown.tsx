@@ -10,6 +10,7 @@ import { ForecastChart } from '../components/charts/ForecastChart';
 import { ClassificationBadge, ExtractionTrendBadge, GwTrendBadge, SalinityRiskBadge } from '../components/RiskBadge';
 import { prepareChartData, formatGwLevel, formatPercent, formatRelativeTime } from '../lib/format';
 import { computeDrawdownRiskScore, computeSalinityRiskScore } from '../lib/risk';
+import { ContributingFactors } from '../components/ContributingFactors';
 
 export function DistrictDrillDown() {
   const { id } = useParams<{ id: string }>();
@@ -160,55 +161,9 @@ export function DistrictDrillDown() {
           />
         </section>
 
-        {/* Contributing Factors Grid */}
-        <section aria-labelledby="factors-title">
-          <h2 id="factors-title" className="text-lg font-black text-ink-primary mb-3">
-            Hydrogeological Contributing Factors
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            <FactorCard
-              label="Rainfall Deficit"
-              value={formatPercent(district.rainfallDeficitPct)}
-              description={district.rainfallDeficitPct > 20
-                ? 'Severe deficit slows seasonal natural replenishment'
-                : district.rainfallDeficitPct > 0
-                  ? 'Moderate deficit below 30-year historical mean'
-                  : 'Monsoon surplus aids active aquifer recovery'}
-              trend={district.rainfallDeficitPct > 10 ? 'negative' : district.rainfallDeficitPct > 0 ? 'caution' : 'positive'}
-              icon="🌧️"
-            />
-            <FactorCard
-              label="12-Month GW Slope"
-              value={district.gwTrend === 'declining' ? 'Declining' : district.gwTrend === 'improving' ? 'Improving' : 'Stable'}
-              description={district.gwTrend === 'declining'
-                ? 'Persistent water table drop over past 12 months'
-                : district.gwTrend === 'improving'
-                  ? 'Post-monsoon water table recharge observed'
-                  : 'Aquifer maintains stable equilibrium'}
-              trend={district.gwTrend === 'declining' ? 'negative' : district.gwTrend === 'improving' ? 'positive' : 'neutral'}
-              icon="📉"
-            />
-            <FactorCard
-              label="Extraction Pressure"
-              value={district.extractionTrend === 'rising' ? 'Intensifying' : district.extractionTrend === 'falling' ? 'Moderating' : 'Stable'}
-              description={district.extractionTrend === 'rising'
-                ? 'Heavy agricultural / industrial tubewell pumping'
-                : district.extractionTrend === 'falling'
-                  ? 'Lower seasonal groundwater abstraction'
-                  : 'Constant baseline abstraction'}
-              trend={district.extractionTrend === 'rising' ? 'negative' : district.extractionTrend === 'falling' ? 'positive' : 'neutral'}
-              icon="⛽"
-            />
-            <FactorCard
-              label={district.isCoastal ? 'Coastal Proximity' : 'Aquifer Geology'}
-              value={district.isCoastal ? 'Coastal Aquifer' : 'Inland Alluvial / Hard Rock'}
-              description={district.isCoastal
-                ? 'Proximity to sea elevates saltwater intrusion risk'
-                : 'Semi-confined deep formation with limited natural recharge'}
-              trend={district.isCoastal ? 'caution' : 'neutral'}
-              icon={district.isCoastal ? '🌊' : '🪨'}
-            />
-          </div>
+        {/* ML Explainability — Contributing Factors */}
+        <section>
+          <ContributingFactors district={district} />
         </section>
 
         {/* Coastal Salinity Chart if coastal */}
@@ -311,40 +266,6 @@ export function DistrictDrillDown() {
           )}
         </section>
       </main>
-    </div>
-  );
-}
-
-interface FactorCardProps {
-  label: string;
-  value: string;
-  description: string;
-  trend: 'positive' | 'negative' | 'caution' | 'neutral';
-  icon: string;
-}
-
-function FactorCard({ label, value, description, trend, icon }: FactorCardProps) {
-  const trendStyles = {
-    positive: { color: '#16A34A', bg: '#DCFCE7' },
-    negative: { color: '#DC2626', bg: '#FEF2F2' },
-    caution: { color: '#CA8A04', bg: '#FEF9C3' },
-    neutral: { color: '#64748B', bg: '#F1F5F9' },
-  };
-
-  const style = trendStyles[trend];
-
-  return (
-    <div className="glass-card rounded-2xl border border-white/90 p-3.5 sm:p-4 shadow-2xs hover:shadow-xs transition-shadow">
-      <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ backgroundColor: style.bg }}>
-          {icon}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-ink-muted font-extrabold uppercase tracking-wider">{label}</p>
-          <p className="text-sm font-bold text-ink-primary mt-0.5">{value}</p>
-          <p className="text-[11px] text-ink-secondary mt-1 leading-snug">{description}</p>
-        </div>
-      </div>
     </div>
   );
 }
