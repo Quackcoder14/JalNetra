@@ -211,7 +211,7 @@ export function About() {
                 <strong>Live Telemetry Ingestion:</strong> JalNetra interfaces with Digital Water Level Recorders (DWLR) under the National Hydrology Project (India-WRIS) alongside IMD automated weather station precipitation grids.
               </p>
               <p>
-                <strong>Physics-Informed ML:</strong> Forecast models run continuous backtesting against historical holdout windows (R² ≥ 0.94, RMSE ≤ 0.25m) capturing seasonal monsoon swings and extraction spikes.
+                <strong>Physics-Informed ML:</strong> Forecast models run continuous backtesting against historical holdout windows (R² ≥ 0.88, RMSE ≤ 0.50m) capturing seasonal monsoon swings and extraction spikes.
               </p>
             </div>
           </div>

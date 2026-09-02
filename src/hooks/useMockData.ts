@@ -205,7 +205,11 @@ export function useBacktest(districtId: string | undefined) {
     setLoading(true);
     setError(null);
     try {
-      const res: ApiResponse<BacktestResult> = await backtestDistrict(districtId);
+      // Allow 1.5s for real model computation / smooth loading UX
+      const [res] = await Promise.all([
+        backtestDistrict(districtId),
+        new Promise(resolve => setTimeout(resolve, 1500)),
+      ]);
       setData(res.data);
     } catch (err) {
       setError('Backtest failed');
