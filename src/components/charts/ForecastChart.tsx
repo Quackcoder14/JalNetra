@@ -2,12 +2,14 @@
  * Forecast chart component using Recharts.
  * Shows historical data + forecast with confidence band and clear boundary marker.
  *
- * RULES OF HOOKS: ALL hooks must be called unconditionally at the top,
- * before any early returns. useMemo is now above the !mounted guard.
+ * KEY FIX: All series share ONE unified dataset (combinedData) with separate
+ * dataKeys: historicalValue, forecastValue, upper, lower.
+ * Per-<Line> data props always start at x=0, so the forecast line was rendering
+ * over the historical region. Using shared data + null-gapped dataKeys fixes this.
  */
 
 import {
-  LineChart,
+  ComposedChart,
   Line,
   Area,
   XAxis,
@@ -32,6 +34,22 @@ interface ForecastChartProps {
   animate?: boolean;
 }
 
+/** Unified row fed into ComposedChart — all series share this array */
+interface UnifiedPoint {
+  month: string;
+  displayMonth: string;
+  /** Set for historical ticks; null for pure-forecast ticks */
+  historicalValue: number | null;
+  /** Set for forecast ticks (+ bridge vertex on the last historical tick); null otherwise */
+  forecastValue: number | null;
+  /** 95% CI upper bound — only on forecast ticks */
+  upper: number | null;
+  /** 95% CI lower bound — only on forecast ticks */
+  lower: number | null;
+  isForecast: boolean;
+  isBoundary?: boolean;
+}
+
 export function ForecastChart({
   data,
   title,
@@ -49,31 +67,61 @@ export function ForecastChart({
     setMounted(true);
   }, []);
 
-  // Build confidence band polygon data (must be here, before any return)
-  const confidenceBandData = useMemo(() => {
-    const forecastPoints = data.filter(d => d.isForecast && d.upper !== undefined && d.lower !== undefined);
-    if (forecastPoints.length === 0) return [];
+  /**
+   * Build a single flat dataset.
+   * - historicalValue: filled for historical points, null for forecast
+   * - forecastValue:   filled for forecast points AND the last historical point
+   *                    (bridge vertex so the dashed line visually connects)
+   * - upper/lower:     filled only on forecast points
+   */
+  const { unified, boundaryDisplayMonth } = useMemo(() => {
+    const rows: UnifiedPoint[] = [];
+    let lastHistValue: number | null = null;
+    let boundaryDM = '';
+    let bridgeDone = false;
 
-    const upperPoints = forecastPoints.map(d => ({
-      displayMonth: d.displayMonth,
-      value: d.upper!,
-      index: d.index,
-    }));
+    data.forEach((d) => {
+      if (!d.isForecast) {
+        lastHistValue = d.value;
+        if (d.isBoundary) boundaryDM = d.displayMonth;
+        rows.push({
+          month: d.month,
+          displayMonth: d.displayMonth,
+          historicalValue: d.value,
+          forecastValue: null,
+          upper: null,
+          lower: null,
+          isForecast: false,
+          isBoundary: d.isBoundary,
+        });
+      } else {
+        if (!bridgeDone && lastHistValue !== null) {
+          // Patch the last historical row: also fill forecastValue with the
+          // same value so the two lines share a common vertex (visual bridge).
+          const lastRow = rows[rows.length - 1];
+          if (lastRow && !lastRow.isForecast) {
+            lastRow.forecastValue = lastHistValue;
+          }
+          bridgeDone = true;
+        }
+        rows.push({
+          month: d.month,
+          displayMonth: d.displayMonth,
+          historicalValue: null,
+          forecastValue: d.value,
+          upper: d.upper ?? null,
+          lower: d.lower ?? null,
+          isForecast: true,
+          isBoundary: d.isBoundary,
+        });
+      }
+    });
 
-    const lowerPoints = [...forecastPoints].reverse().map(d => ({
-      displayMonth: d.displayMonth,
-      value: d.lower!,
-      index: d.index,
-    }));
-
-    return [...upperPoints, ...lowerPoints];
+    return { unified: rows, boundaryDisplayMonth: boundaryDM };
   }, [data]);
 
-  // Separate data sets (pure derivations — no hook, but keep after useMemo for clarity)
-  const historicalData = data.filter(d => !d.isForecast);
-  const forecastData = data.filter(d => d.isForecast);
-  const combinedData = data.map((d, i) => ({ ...d, index: i }));
-  const boundaryIndex = data.findIndex(d => d.isBoundary && !d.isForecast);
+  const hasForecast = unified.some((d) => d.isForecast);
+  const hasConfidenceBand = unified.some((d) => d.upper !== null && d.lower !== null);
 
   // ── Early return guard AFTER all hooks ───────────────────────────────────
   if (!mounted) {
@@ -87,17 +135,20 @@ export function ForecastChart({
     );
   }
 
-  // ── Custom tooltip (defined after hooks, inside render — not a hook) ──────
+  // ── Custom tooltip ────────────────────────────────────────────────────────
   const CustomTooltip = ({
     active,
     payload,
   }: {
     active?: boolean;
-    payload?: Array<{ value: number; name: string; color: string; payload: ChartDataPoint }>;
+    payload?: Array<{ value: number | null; name: string; color: string; payload: UnifiedPoint }>;
   }) => {
     if (!active || !payload || !payload.length) return null;
 
-    const point = payload[0].payload;
+    const entry = payload.find((p) => p.value !== null && p.value !== undefined);
+    if (!entry) return null;
+
+    const point = entry.payload;
     const isForecast = point.isForecast;
 
     return (
@@ -107,15 +158,15 @@ export function ForecastChart({
           {isForecast && <span className="ml-2 px-1.5 py-0.5 text-[10px] font-medium rounded bg-accent/10 text-accent">Forecast</span>}
         </p>
         <div className="flex items-center gap-2 text-body-sm font-medium text-ink-primary">
-          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: payload[0].color }} />
-          <span>{payload[0].name}: </span>
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span>{isForecast ? 'Forecast' : 'Historical'}: </span>
           <span className="tabular-nums">
-            {unit === 'm' ? formatGwLevel(payload[0].value) : formatEc(payload[0].value)}
+            {unit === 'm' ? formatGwLevel(entry.value!) : formatEc(entry.value!)}
           </span>
         </div>
-        {isForecast && point.upper !== undefined && point.lower !== undefined && (
+        {isForecast && point.upper !== null && point.lower !== null && (
           <div className="mt-1.5 text-caption text-ink-muted">
-            95% CI: {unit === 'm' ? formatGwLevel(point.lower) : formatEc(point.lower)} – {unit === 'm' ? formatGwLevel(point.upper) : formatEc(point.upper)}
+            95% CI: {unit === 'm' ? formatGwLevel(point.lower!) : formatEc(point.lower!)} – {unit === 'm' ? formatGwLevel(point.upper!) : formatEc(point.upper!)}
           </div>
         )}
       </div>
@@ -127,13 +178,17 @@ export function ForecastChart({
       <div className="mb-4">
         <h3 className="text-display-sm font-semibold text-ink-primary">{title}</h3>
         <p className="text-caption text-ink-muted mt-0.5">
-          {yLabel} — Historical (solid) & Forecast (dashed) with 95% confidence band
+          {yLabel} — Historical (solid) &amp; Forecast (dashed) with 95% confidence band
         </p>
       </div>
 
       <div style={{ height }}>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={combinedData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+          {/*
+           * ComposedChart: lets Line + Area share one dataset.
+           * All series use unified[] by index — x-positions are guaranteed correct.
+           */}
+          <ComposedChart data={unified} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
             <CartesianGrid
               strokeDasharray="4 4"
               stroke="var(--color-hairline)"
@@ -156,40 +211,53 @@ export function ForecastChart({
               width={50}
             />
 
-            {/* Confidence band */}
-            {confidenceBandData.length > 0 && (
+            {/* 95% confidence band — upper fills accent colour, lower fills surface to punch a hole */}
+            {hasConfidenceBand && (
               <Area
                 type="monotone"
-                data={confidenceBandData}
-                dataKey="value"
+                dataKey="upper"
                 stroke="none"
                 fill="var(--color-accent)"
-                fillOpacity={0.12}
+                fillOpacity={0.15}
+                legendType="none"
+                connectNulls={false}
                 isAnimationActive={_animate}
+                activeDot={false as never}
+              />
+            )}
+            {hasConfidenceBand && (
+              <Area
+                type="monotone"
+                dataKey="lower"
+                stroke="none"
+                fill="var(--color-surface)"
+                fillOpacity={1}
+                legendType="none"
+                connectNulls={false}
+                isAnimationActive={_animate}
+                activeDot={false as never}
               />
             )}
 
-            {/* Historical line — solid */}
+            {/* Historical line — solid, dark */}
             <Line
               type="monotone"
-              dataKey="value"
-              data={historicalData}
+              dataKey="historicalValue"
               stroke="var(--color-ink-primary)"
               strokeWidth={2.5}
               dot={false}
               activeDot={{ r: 6, strokeWidth: 2, fill: 'var(--color-surface)' }}
               name="Historical"
               legendType="line"
-              connectNulls={true}
+              connectNulls={false}
               isAnimationActive={_animate}
             />
 
-            {/* Forecast line — dashed */}
-            {forecastData.length > 0 && (
+            {/* Forecast line — dashed, accent colour */}
+            {hasForecast && (
               <Line
                 type="monotone"
-                dataKey="value"
-                data={forecastData}
+                dataKey="forecastValue"
                 stroke="var(--color-accent)"
                 strokeWidth={2.5}
                 strokeDasharray="6 4"
@@ -197,15 +265,15 @@ export function ForecastChart({
                 activeDot={{ r: 6, strokeWidth: 2, fill: 'var(--color-surface)', stroke: 'var(--color-accent)' }}
                 name="Forecast"
                 legendType="line"
-                connectNulls={true}
+                connectNulls={false}
                 isAnimationActive={_animate}
               />
             )}
 
-            {/* Forecast boundary reference line */}
-            {boundaryIndex >= 0 && (
+            {/* Forecast boundary reference line — keyed on displayMonth string */}
+            {boundaryDisplayMonth && (
               <ReferenceLine
-                x={boundaryIndex}
+                x={boundaryDisplayMonth}
                 stroke="var(--color-ink-muted)"
                 strokeWidth={1.5}
                 strokeDasharray="4 4"
@@ -232,7 +300,7 @@ export function ForecastChart({
                 formatter={(value: string) => value}
               />
             )}
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
 
