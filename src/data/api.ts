@@ -27,10 +27,7 @@ import {
 } from './types';
 
 // API Base URL (defaults to production Render backend)
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://jalnetra-api.onrender.com';
-
-// Simulated network delay for mock fallback (ms)
-const NETWORK_DELAY = 150;
+const API_BASE = (import.meta.env?.VITE_API_BASE_URL || 'https://jalnetra-api.onrender.com').replace(/\/$/, '');
 
 /**
  * Standard mock API response wrapper.
