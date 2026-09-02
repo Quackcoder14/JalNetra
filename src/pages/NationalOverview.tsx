@@ -355,7 +355,7 @@ export function NationalOverview() {
             {/* Data Source */}
             <div className="glass-card p-3.5 border border-sky-200/80 bg-sky-50/50">
               <p className="text-caption text-sky-900 leading-relaxed">
-                <strong className="font-bold text-sky-950">📡 SARIMA AI Forecast Engine:</strong> 12-month groundwater level predictions trained on seasonal CGWB piezometric time-series with 95% confidence intervals.
+                <strong className="font-bold text-sky-950">📡 Prophet + XGBoost AI Hybrid Engine:</strong> 12-month groundwater level predictions combining Prophet seasonal trends with XGBoost residual boosting and 95% confidence intervals.
               </p>
             </div>
           </aside>

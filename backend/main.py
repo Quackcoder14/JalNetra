@@ -1,6 +1,6 @@
-"""
+﻿"""
 JalNetra - FastAPI Backend
-Serves groundwater telemetry data, SARIMA AI forecasts, policy simulations, and recharge recommendations.
+Serves groundwater telemetry data, Prophet + XGBoost AI Hybrid forecasts, policy simulations, and recharge recommendations.
 Ready for Render deployment.
 """
 
@@ -12,20 +12,22 @@ import random
 import math
 from datetime import datetime, timedelta
 
-# ── ML Imports (with graceful fallback) ──────────────────────────────────────
-_SARIMA_AVAILABLE = False
+# ── ML Imports (Prophet + XGBoost Ensemble with graceful fallback) ───────────
+_HYBRID_AVAILABLE = False
 try:
     import numpy as np
-    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    import pandas as pd
+    from prophet import Prophet
+    from xgboost import XGBRegressor
     import warnings
     warnings.filterwarnings("ignore")
-    _SARIMA_AVAILABLE = True
+    _HYBRID_AVAILABLE = True
 except ImportError:
     pass
 
 app = FastAPI(
     title="JalNetra API",
-    description="National Groundwater Intelligence Network — REST API for telemetry, forecasts, and policy simulation.",
+    description="National Groundwater Intelligence Network — REST API with Prophet + XGBoost Hybrid Forecasting.",
     version="2.0.0",
 )
 
@@ -151,32 +153,90 @@ def _make_gw_history(seed_val: int, base_level: float = 18.0, months: int = 60) 
     return readings
 
 
-# ── SARIMA Forecast (primary) ──────────────────────────────────────────────────
+# ── Prophet + XGBoost Hybrid ML Model ──────────────────────────────────────────
 
-def _sarima_forecast(history: list, steps: int = 12) -> list:
-    if not _SARIMA_AVAILABLE or len(history) < 24:
+def _prophet_xgboost_forecast(history: list, steps: int = 12) -> list:
+    """
+    Fits a Prophet + XGBoost Hybrid time-series ensemble:
+    1. Prophet: fits base trend line + 12-month annual monsoon seasonality.
+    2. XGBoost: fits on Prophet residuals using trigonometric Fourier and lag features.
+    3. Hybrid: predictions = Prophet forecast + XGBoost residual adjustments.
+    """
+    if not _HYBRID_AVAILABLE or len(history) < 24:
         return []
     try:
-        values = np.array([h["value"] for h in history], dtype=float)
-        last_month = datetime.strptime(history[-1]["month"], "%Y-%m")
-        model = SARIMAX(
-            values,
-            order=(1, 1, 1),
-            seasonal_order=(1, 1, 0, 12),
-            enforce_stationarity=False,
-            enforce_invertibility=False,
+        df = pd.DataFrame([
+            {"ds": pd.to_datetime(h["month"] + "-01"), "y": float(h["value"])}
+            for h in history
+        ])
+
+        # Step 1: Fit Prophet base seasonal model
+        m = Prophet(
+            yearly_seasonality=True,
+            weekly_seasonality=False,
+            daily_seasonality=False,
+            interval_width=0.95,
         )
-        fit = model.fit(disp=False, maxiter=200)
-        forecast_obj = fit.get_forecast(steps=steps)
-        mean_vals = forecast_obj.predicted_mean
-        conf_int  = forecast_obj.conf_int(alpha=0.05)
+        m.fit(df)
+
+        # In-sample predictions to compute residuals
+        in_sample = m.predict(df)
+        df["prophet_pred"] = in_sample["yhat"].values
+        df["residual"] = df["y"] - df["prophet_pred"]
+
+        # Step 2: Fit XGBoost on residuals with engineered Fourier and lag features
+        X_train = []
+        y_train = []
+        for i in range(len(df)):
+            month = df["ds"].iloc[i].month
+            sin_m = math.sin(2 * math.pi * month / 12)
+            cos_m = math.cos(2 * math.pi * month / 12)
+            lag_1 = float(df["residual"].iloc[i - 1]) if i > 0 else 0.0
+            t_idx = float(i)
+            X_train.append([month, sin_m, cos_m, lag_1, t_idx])
+            y_train.append(float(df["residual"].iloc[i]))
+
+        xgb = XGBRegressor(
+            n_estimators=40,
+            max_depth=3,
+            learning_rate=0.08,
+            random_state=42,
+            verbosity=0,
+        )
+        xgb.fit(np.array(X_train), np.array(y_train))
+
+        # Step 3: Prophet future forecast
+        future = m.make_future_dataframe(periods=steps, freq="MS")
+        future_forecast = m.predict(future).iloc[-steps:].reset_index(drop=True)
+
+        # Step 4: Multi-step XGBoost residual inference and hybrid combination
+        curr_lag = float(df["residual"].iloc[-1])
+        last_t = len(df)
         points = []
         for i in range(steps):
-            dt    = last_month + timedelta(days=30 * (i + 1))
-            val   = float(round(mean_vals[i], 2))
-            upper = float(round(conf_int.iloc[i, 1], 2))
-            lower = float(round(max(0.5, conf_int.iloc[i, 0]), 2))
-            points.append({"month": dt.strftime("%Y-%m"), "value": val, "upper": upper, "lower": lower})
+            fut_date = future_forecast["ds"].iloc[i]
+            month = fut_date.month
+            sin_m = math.sin(2 * math.pi * month / 12)
+            cos_m = math.cos(2 * math.pi * month / 12)
+            t_idx = float(last_t + i)
+            feat = np.array([[month, sin_m, cos_m, curr_lag, t_idx]])
+            pred_resid = float(xgb.predict(feat)[0])
+            curr_lag = pred_resid
+
+            p_val   = float(future_forecast["yhat"].iloc[i])
+            p_upper = float(future_forecast["yhat_upper"].iloc[i])
+            p_lower = float(future_forecast["yhat_lower"].iloc[i])
+
+            final_val   = round(max(0.5, p_val + pred_resid), 2)
+            final_upper = round(max(final_val + 0.1, p_upper + pred_resid), 2)
+            final_lower = round(max(0.5, min(final_val - 0.1, p_lower + pred_resid)), 2)
+
+            points.append({
+                "month": fut_date.strftime("%Y-%m"),
+                "value": final_val,
+                "upper": final_upper,
+                "lower": final_lower,
+            })
         return points
     except Exception:
         return []
@@ -205,9 +265,9 @@ def _simulation_forecast(history: list, steps: int = 12) -> list:
     return points
 
 def _make_forecast(history: list, steps: int = 12):
-    pts = _sarima_forecast(history, steps)
+    pts = _prophet_xgboost_forecast(history, steps)
     if pts:
-        return pts, "sarima"
+        return pts, "prophet_xgboost"
     return _simulation_forecast(history, steps), "simulation"
 
 
@@ -219,7 +279,7 @@ async def root():
         "service": "JalNetra API",
         "status": "online",
         "version": "2.0.0",
-        "forecastEngine": "sarima" if _SARIMA_AVAILABLE else "simulation",
+        "forecastEngine": "prophet_xgboost" if _HYBRID_AVAILABLE else "simulation",
         "timestamp": datetime.utcnow().isoformat(),
         "docs": "/docs",
     }
@@ -228,7 +288,7 @@ async def root():
 async def health():
     return {
         "status": "ok",
-        "forecastEngine": "sarima" if _SARIMA_AVAILABLE else "simulation",
+        "forecastEngine": "prophet_xgboost" if _HYBRID_AVAILABLE else "simulation",
         "timestamp": datetime.utcnow().isoformat(),
     }
 
@@ -355,11 +415,11 @@ async def backtest_district(district_id: str):
 
     engine = "simulation"
     points = []
-    if _SARIMA_AVAILABLE and len(train) >= 24:
-        sarima_pts = _sarima_forecast(train, steps=len(holdout))
-        if sarima_pts and len(sarima_pts) == len(holdout):
-            engine = "sarima"
-            for h, p in zip(holdout, sarima_pts):
+    if _HYBRID_AVAILABLE and len(train) >= 24:
+        hybrid_pts = _prophet_xgboost_forecast(train, steps=len(holdout))
+        if hybrid_pts and len(hybrid_pts) == len(holdout):
+            engine = "prophet_xgboost"
+            for h, p in zip(holdout, hybrid_pts):
                 points.append({"month": h["month"], "actual": h["value"], "predicted": p["value"]})
 
     if not points:

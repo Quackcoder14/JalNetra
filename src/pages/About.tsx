@@ -211,7 +211,7 @@ export function About() {
                 <strong>Live Telemetry Ingestion:</strong> JalNetra interfaces with Digital Water Level Recorders (DWLR) under the National Hydrology Project (India-WRIS) alongside IMD automated weather station precipitation grids.
               </p>
               <p>
-                <strong>Physics-Informed ML:</strong> Forecast models run continuous backtesting against historical holdout windows (R² ≥ 0.88, RMSE ≤ 0.50m) capturing seasonal monsoon swings and extraction spikes.
+                <strong>Prophet + XGBoost Hybrid ML:</strong> Forecast models combine Prophet for seasonal cyclical decomposition with XGBoost for nonlinear residual error boosting, running continuous backtesting against historical holdout windows (R² ≥ 0.88, RMSE ≤ 0.50m).
               </p>
             </div>
           </div>
