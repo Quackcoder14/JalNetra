@@ -252,37 +252,58 @@ export function DistrictDrillDown() {
               {rechargeData.features.map((feat, idx) => {
                 const p = feat.properties;
                 const isHigh = p.priority === 'High';
+                const [lng, lat] = feat.geometry.coordinates;
+                const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
                 return (
                   <div
                     key={p.block_id || idx}
-                    className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all"
+                    className="p-3.5 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
                   >
-                    <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
-                      <div>
-                        <h4 className="font-bold text-xs text-ink-primary">{p.block_name}</h4>
-                        <span className="text-[10px] text-ink-muted font-mono">{feat.geometry.coordinates[1].toFixed(3)}°N, {feat.geometry.coordinates[0].toFixed(3)}°E</span>
+                    <div>
+                      <div className="flex items-start justify-between gap-2 pb-2 border-b border-slate-100 mb-2">
+                        <div>
+                          <h4 className="font-bold text-xs text-ink-primary">{p.block_name}</h4>
+                          <span className="text-[10px] text-ink-muted font-mono">{lat.toFixed(3)}°N, {lng.toFixed(3)}°E</span>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isHigh ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          {p.priority} Priority
+                        </span>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        isHigh ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {p.priority} Priority
-                      </span>
+
+                      <div className="grid grid-cols-2 gap-1.5 text-[11px] p-2 bg-slate-50 rounded-lg mb-2">
+                        <div>
+                          <span className="text-ink-muted block text-[10px]">Type</span>
+                          <span className="font-bold text-ink-primary">{p.structure_type}</span>
+                        </div>
+                        <div>
+                          <span className="text-ink-muted block text-[10px]">Slope</span>
+                          <span className="font-bold text-ink-primary">{p.slope_pct}%</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-ink-secondary leading-relaxed mb-3">
+                        <strong>GIS Rule:</strong> {p.rationale}
+                      </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-1.5 text-[11px] p-2 bg-slate-50 rounded-lg mb-2">
-                      <div>
-                        <span className="text-ink-muted block text-[10px]">Type</span>
-                        <span className="font-bold text-ink-primary">{p.structure_type}</span>
-                      </div>
-                      <div>
-                        <span className="text-ink-muted block text-[10px]">Slope</span>
-                        <span className="font-bold text-ink-primary">{p.slope_pct}%</span>
-                      </div>
+                    <div className="pt-2 border-t border-slate-100 mt-auto">
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 px-3 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 font-bold text-xs transition-all shadow-2xs group"
+                        title={`Navigate to ${lat.toFixed(4)}, ${lng.toFixed(4)} in Google Maps`}
+                      >
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                          <circle cx="12" cy="9" r="2.5" />
+                        </svg>
+                        <span>Navigate to Spot</span>
+                        <span className="text-[10px] opacity-75 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform">↗</span>
+                      </a>
                     </div>
-
-                    <p className="text-[11px] text-ink-secondary leading-relaxed">
-                      <strong>GIS Rule:</strong> {p.rationale}
-                    </p>
                   </div>
                 );
               })}
