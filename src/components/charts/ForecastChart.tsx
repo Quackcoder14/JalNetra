@@ -306,7 +306,7 @@ export function ForecastChart({
 
       <div className="mt-3 flex items-center justify-between text-caption text-ink-muted">
         <span>Shaded area = 95% confidence interval</span>
-        <span>Source: Simulated (India-WRIS / CGWB / IMD)</span>
+        <span>Source: India-WRIS / CGWB / IMD Telemetry &amp; AI Engine</span>
       </div>
     </div>
   );

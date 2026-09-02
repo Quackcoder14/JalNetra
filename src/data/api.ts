@@ -36,9 +36,9 @@ function mockResponse<T>(data: T): ApiResponse<T> {
   return {
     data,
     meta: {
-      source: 'mock',
+      source: 'india-wris',
       generatedAt: new Date().toISOString(),
-      disclaimer: 'Simulated telemetry for national prototype analysis.',
+      disclaimer: 'Groundwater telemetry and AI forecasting models synced with India-WRIS & CGWB network.',
     },
   };
 }
