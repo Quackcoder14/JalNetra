@@ -1,14 +1,18 @@
 /**
  * JalNetra Service Worker for Mobile PWA
- * Caches static shell and telemetry assets for offline resiliency.
+ * Caches static shell, PWA icons, and telemetry assets for offline resiliency.
  */
 
-const CACHE_NAME = 'jalnetra-v1';
+const CACHE_NAME = 'jalnetra-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/favicon.svg'
+  '/favicon.svg',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/maskable-icon-512x512.png',
+  '/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {
