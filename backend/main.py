@@ -4,13 +4,33 @@ Serves groundwater telemetry data, Prophet + XGBoost AI Hybrid forecasts, policy
 Ready for Render deployment.
 """
 
-from fastapi import FastAPI, HTTPException
+import os
+import sys
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import random
 import math
 from datetime import datetime, timedelta
+from sqlalchemy import select, func
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("jalnetra")
+
+# ── Database & Models Setup ──────────────────────────────────────────────────
+DB_ONLINE = False
+try:
+    from database import engine, AsyncSessionLocal, get_db
+    from models import District as DistrictModel, GroundwaterReading as ReadingModel, RechargeSite as RechargeModel
+    from seed import seed_database_if_empty
+    DB_MODULES_LOADED = True
+except Exception as e:
+    logger.warning(f"Database modules load warning: {e}")
+    DB_MODULES_LOADED = False
 
 # ── ML Imports (Prophet + XGBoost Ensemble with graceful fallback) ───────────
 _HYBRID_AVAILABLE = False
@@ -25,10 +45,27 @@ try:
 except ImportError:
     pass
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global DB_ONLINE
+    if DB_MODULES_LOADED:
+        try:
+            logger.info("Attempting PostgreSQL database connection & table check...")
+            seeded = await seed_database_if_empty()
+            DB_ONLINE = True
+            logger.info(f"PostgreSQL connected successfully! (Initial seeding performed: {seeded})")
+        except Exception as e:
+            DB_ONLINE = False
+            logger.warning(f"PostgreSQL connection unavailable: {e}. Running with in-memory fallback.")
+    yield
+    if DB_MODULES_LOADED and DB_ONLINE:
+        await engine.dispose()
+
 app = FastAPI(
     title="JalNetra API",
-    description="National Groundwater Intelligence Network — REST API with Prophet + XGBoost Hybrid Forecasting.",
-    version="2.0.0",
+    description="National Groundwater Intelligence Network — REST API with PostgreSQL/PostGIS & Prophet + XGBoost Hybrid Forecasting.",
+    version="2.1.0",
+    lifespan=lifespan,
 )
 
 ALLOWED_ORIGINS = [
@@ -311,32 +348,100 @@ def _make_forecast(history: list, steps: int = 12, state: str = ""):
     return _simulation_forecast(history, steps, state=state), "simulation"
 
 
-# ── Health Check ───────────────────────────────────────────────────────────────
+# ── Health & DB Status Endpoints ───────────────────────────────────────────────
 
 @app.get("/", tags=["Health"])
 async def root():
     return {
         "service": "JalNetra API",
         "status": "online",
-        "version": "2.0.0",
+        "version": "2.1.0",
+        "database": "PostgreSQL Connected" if DB_ONLINE else "In-Memory / Standby",
         "forecastEngine": "prophet_xgboost" if _HYBRID_AVAILABLE else "simulation",
         "timestamp": datetime.utcnow().isoformat(),
         "docs": "/docs",
     }
 
 @app.get("/health", tags=["Health"])
+@app.get("/api/health", tags=["Health"])
 async def health():
     return {
         "status": "ok",
+        "database": {
+            "connected": DB_ONLINE,
+            "driver": "asyncpg",
+            "dialect": "postgresql",
+        },
         "forecastEngine": "prophet_xgboost" if _HYBRID_AVAILABLE else "simulation",
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+@app.get("/api/db-status", tags=["Database"])
+async def db_status():
+    if not DB_ONLINE:
+        return {
+            "status": "disconnected",
+            "message": "PostgreSQL is not currently reachable. Using fallback hydro-engine.",
+        }
+    try:
+        async with AsyncSessionLocal() as session:
+            dist_cnt = (await session.execute(select(func.count(DistrictModel.id)))).scalar() or 0
+            read_cnt = (await session.execute(select(func.count(ReadingModel.id)))).scalar() or 0
+            site_cnt = (await session.execute(select(func.count(RechargeModel.id)))).scalar() or 0
+            return {
+                "status": "connected",
+                "database": "PostgreSQL",
+                "metrics": {
+                    "districts": dist_cnt,
+                    "groundwater_readings": read_cnt,
+                    "recharge_candidate_sites": site_cnt,
+                },
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 # ── Districts ──────────────────────────────────────────────────────────────────
 
 @app.get("/api/districts", tags=["Districts"])
 async def get_all_districts():
+    if DB_ONLINE:
+        try:
+            async with AsyncSessionLocal() as session:
+                districts = (await session.execute(select(DistrictModel))).scalars().all()
+                summaries = []
+                for d in districts:
+                    latest_q = await session.execute(
+                        select(ReadingModel)
+                        .where(ReadingModel.district_id == d.id)
+                        .order_by(ReadingModel.month.desc())
+                        .limit(1)
+                    )
+                    latest = latest_q.scalar_one_or_none()
+                    latest_val = latest.value if latest else d.base_level
+                    deficit = latest.rainfall_deficit_pct if latest else 15
+                    salinity = latest.salinity_risk_score if (latest and d.is_coastal) else None
+
+                    summaries.append({
+                        "id": d.id,
+                        "name": d.name,
+                        "state": d.state,
+                        "lat": d.lat,
+                        "lng": d.lng,
+                        "cgwbClassification": d.cgwb_classification,
+                        "latestGwLevel": round(latest_val, 1),
+                        "gwTrend": d.gw_trend,
+                        "rainfallDeficitPct": deficit,
+                        "extractionTrend": d.extraction_trend,
+                        "isCoastal": d.is_coastal,
+                        "salinityRiskScore": salinity,
+                        "lastUpdated": datetime.utcnow().isoformat(),
+                    })
+                return {"data": summaries, "meta": {"source": "postgresql", "generatedAt": datetime.utcnow().isoformat()}}
+        except Exception as e:
+            logger.warning(f"DB query failed in /api/districts: {e}, falling back to memory")
+
     summaries = []
     for d in DISTRICTS:
         rng = _simple_rng(hash(d["id"]) & 0xFFFFFFFF)
@@ -355,11 +460,65 @@ async def get_all_districts():
             "salinityRiskScore": int(rng() * 80) if d["coastal"] else None,
             "lastUpdated": datetime.utcnow().isoformat(),
         })
-    return {"data": summaries, "meta": {"source": "api", "generatedAt": datetime.utcnow().isoformat()}}
+    return {"data": summaries, "meta": {"source": "memory", "generatedAt": datetime.utcnow().isoformat()}}
 
 
 @app.get("/api/districts/{district_id}", tags=["Districts"])
 async def get_district_detail(district_id: str):
+    clean = district_id.lower().strip()
+    if DB_ONLINE:
+        try:
+            async with AsyncSessionLocal() as session:
+                q = await session.execute(
+                    select(DistrictModel).where(
+                        (DistrictModel.id == clean) | 
+                        (DistrictModel.name.ilike(f"%{clean}%"))
+                    )
+                )
+                d = q.scalar_one_or_none()
+                if d:
+                    readings_q = await session.execute(
+                        select(ReadingModel)
+                        .where(ReadingModel.district_id == d.id)
+                        .order_by(ReadingModel.month.asc())
+                    )
+                    readings = readings_q.scalars().all()
+                    history = [{"month": r.month, "value": r.value} for r in readings]
+                    
+                    if not history:
+                        history = _make_gw_history(hash(d.id) & 0xFFFFFFFF, d.base_level, state=d.state)
+
+                    forecast, engine = _make_forecast(history, state=d.state)
+                    latest_val = history[-1]["value"] if history else d.base_level
+                    gw_trend = "declining" if (len(history) >= 12 and history[-1]["value"] > history[-12]["value"]) else "improving"
+
+                    latest_reading = readings[-1] if readings else None
+                    rainfall_deficit = latest_reading.rainfall_deficit_pct if latest_reading else 20
+                    salinity = latest_reading.salinity_risk_score if (latest_reading and d.is_coastal) else None
+
+                    return {
+                        "data": {
+                            "id": d.id,
+                            "name": d.name,
+                            "state": d.state,
+                            "lat": d.lat,
+                            "lng": d.lng,
+                            "cgwbClassification": d.cgwb_classification,
+                            "isCoastal": d.is_coastal,
+                            "latestGwLevel": latest_val,
+                            "gwTrend": gw_trend,
+                            "rainfallDeficitPct": rainfall_deficit,
+                            "extractionTrend": d.extraction_trend,
+                            "salinityRiskScore": salinity,
+                            "lastUpdated": datetime.utcnow().isoformat(),
+                            "gwHistory": history,
+                            "gwForecast": forecast,
+                        },
+                        "meta": {"source": "postgresql", "forecastEngine": engine, "generatedAt": datetime.utcnow().isoformat()},
+                    }
+        except Exception as e:
+            logger.warning(f"DB error in get_district_detail: {e}")
+
     d          = _find_district(district_id)
     seed_val   = hash(d["id"]) & 0xFFFFFFFF
     base_level = 8.0 if d["cls"] == "Safe" else 25.0 if d["cls"] == "Over-Exploited" else 15.0
@@ -384,7 +543,7 @@ async def get_district_detail(district_id: str):
             "gwHistory": history,
             "gwForecast": forecast,
         },
-        "meta": {"source": "api", "forecastEngine": engine, "generatedAt": datetime.utcnow().isoformat()},
+        "meta": {"source": "memory", "forecastEngine": engine, "generatedAt": datetime.utcnow().isoformat()},
     }
 
 
@@ -392,6 +551,28 @@ async def get_district_detail(district_id: str):
 
 @app.get("/api/national-stats", tags=["National"])
 async def get_national_stats():
+    if DB_ONLINE:
+        try:
+            async with AsyncSessionLocal() as session:
+                districts = (await session.execute(select(DistrictModel))).scalars().all()
+                if districts:
+                    total = len(districts)
+                    over_exploited = sum(1 for d in districts if d.cgwb_classification == "Over-Exploited")
+                    critical = sum(1 for d in districts if d.cgwb_classification == "Critical")
+                    coastal = sum(1 for d in districts if d.is_coastal)
+                    return {
+                        "data": {
+                            "totalDistricts": total,
+                            "pctOverExploited": round(over_exploited / total * 100, 1),
+                            "pctCritical": round(critical / total * 100, 1),
+                            "districtsWithRisingSalinity": coastal,
+                            "lastUpdated": datetime.utcnow().isoformat(),
+                        },
+                        "meta": {"source": "postgresql", "generatedAt": datetime.utcnow().isoformat()},
+                    }
+        except Exception as e:
+            logger.warning(f"DB error in national-stats: {e}")
+
     total          = len(DISTRICTS)
     over_exploited = sum(1 for d in DISTRICTS if d["cls"] == "Over-Exploited")
     critical       = sum(1 for d in DISTRICTS if d["cls"] == "Critical")
@@ -404,7 +585,7 @@ async def get_national_stats():
             "districtsWithRisingSalinity": coastal,
             "lastUpdated": datetime.utcnow().isoformat(),
         },
-        "meta": {"source": "api", "generatedAt": datetime.utcnow().isoformat()},
+        "meta": {"source": "memory", "generatedAt": datetime.utcnow().isoformat()},
     }
 
 
@@ -492,6 +673,39 @@ async def backtest_district(district_id: str):
 
 @app.get("/api/districts/{district_id}/recharge", tags=["Recharge"])
 async def get_recharge_sites(district_id: str):
+    clean = district_id.lower().strip()
+    if DB_ONLINE:
+        try:
+            async with AsyncSessionLocal() as session:
+                q = await session.execute(
+                    select(RechargeModel).where(
+                        (RechargeModel.district_id == clean) | 
+                        (RechargeModel.district_id.ilike(f"%{clean}%"))
+                    )
+                )
+                sites = q.scalars().all()
+                if sites:
+                    features = []
+                    for s in sites:
+                        features.append({
+                            "type": "Feature",
+                            "geometry": {"type": "Point", "coordinates": [s.lng, s.lat]},
+                            "properties": {
+                                "id": s.id,
+                                "siteType": s.site_type,
+                                "estimatedRechargeM3PerYear": s.estimated_recharge_m3,
+                                "suitabilityScore": s.suitability_score,
+                                "estimatedCostLakhs": s.estimated_cost_lakhs,
+                                "priority": s.priority,
+                            },
+                        })
+                    return {
+                        "data": {"type": "FeatureCollection", "features": features},
+                        "meta": {"source": "postgresql", "generatedAt": datetime.utcnow().isoformat()},
+                    }
+        except Exception as e:
+            logger.warning(f"DB error in recharge sites: {e}")
+
     d          = _find_district(district_id)
     rng        = _simple_rng(hash(d["id"]) & 0xFFFFFFFF)
     site_types = ["Check Dam", "Percolation Pond", "Farm Pond", "Recharge Shaft", "Nala Bund"]
@@ -514,5 +728,5 @@ async def get_recharge_sites(district_id: str):
         })
     return {
         "data": {"type": "FeatureCollection", "features": features},
-        "meta": {"source": "api", "generatedAt": datetime.utcnow().isoformat()},
+        "meta": {"source": "memory", "generatedAt": datetime.utcnow().isoformat()},
     }
